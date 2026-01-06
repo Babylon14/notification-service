@@ -1,0 +1,82 @@
+services:
+  # 1. База данных PostgreSQL
+  db:
+    image: postgres:16-alpine
+    container_name: mailing_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  # 2. Панель управления БД PgAdmin4
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: mailing_pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+
+  # 3. Брокер сообщений Redis
+  redis:
+    image: redis:7-alpine
+    container_name: mailing_redis
+    restart: always
+    ports:
+      - "6379:6379"
+
+  # 4. Основное приложение FastAPI
+  app:
+    build: .
+    container_name: mailing_app
+    restart: always
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:${POSTGRES_PORT}/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+
+  # 5. Celery Worker (выполняет задачи)
+  worker:
+    build: .
+    container_name: mailing_worker
+    restart: always
+    command: celery -A src.tasks.celery_app worker --loglevel=info
+    volumes:
+      - .:/app
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:${POSTGRES_PORT}/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - app
+      - redis
+  
+  # 6. Flower (мониторинг Celery)
+  flower:
+    image: mher/flower
+    container_name: mailing_flower
+    restart: always
+    command: celery --broker=redis://redis:6379/0 flower
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - worker
+
+volumes:
+  postgres_data:
