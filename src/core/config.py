@@ -1,14 +1,30 @@
 """Подключение к БД (Async Engine)"""
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import AsyncGenerator
-
-from database import AsyncSessionLocal
 
 
 # Описание настроек через Pydantic
 class Settings(BaseSettings):
     # Эти переменные автоматически взяты из .env
+
+    # Данные для БД и Redis
+    DATABASE_URL: str
+    REDIS_URL: str
+    
+    # Данные для PgAdmin (Pydantic будет искать их в .env)
+    PGADMIN_EMAIL: str
+    PGADMIN_PASSWORD: str
+    
+    # Настройки почты
+    SMTP_HOST: str
+    SMTP_PORT: int
+    SMTP_USER: str
+    SMTP_PASSWORD: str
+    SMTP_FROM_EMAIL: str
+    
+    # Безопасность
+    SECRET_KEY: str
+    ALGORITHM: str
+
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
@@ -16,16 +32,13 @@ class Settings(BaseSettings):
     POSTGRES_PORT: str
 
     # Настройка для чтения .env файла
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+        env_file_encoding="utf-8"
+    )
+
 
 settings = Settings()
 
-
-# Зависимости для FastAPI
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
 
