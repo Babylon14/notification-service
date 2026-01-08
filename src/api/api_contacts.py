@@ -1,3 +1,4 @@
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -9,7 +10,7 @@ from src.schemas.schema_contact import ContactCreate, ContactRead
 
 router = APIRouter(prefix="/contacts", tags=["Контакты"])
 
-@router.post("/", response_model=ContactRead, status_code=status.HTTP_201_CREATED)
+@router.post(path="/", response_model=ContactRead, status_code=status.HTTP_201_CREATED)
 async def create_contact(contact_data: ContactCreate, db: AsyncSession = Depends(get_db)) -> ContactRead:
     """Создание контакта"""
 
@@ -33,4 +34,20 @@ async def create_contact(contact_data: ContactCreate, db: AsyncSession = Depends
 
     # 4. Возвращаем созданный контакт
     return new_contact
+
+
+@router.get(path="/", response_model=List[ContactRead])
+async def get_contacts(
+    limit: int = 10, # количество записей (по умолчанию 10)
+    offset: int = 0, # сколько записей пропустить (по умолчанию 0)
+    db: AsyncSession = Depends(get_db)
+    ):
+    """Получение всех контактов"""
+
+    # Создаем запрос: выборка всех контактов и сортировка по ID
+    query = select(Contact).offset(offset).limit(limit).order_by(Contact.id)
+    result = await db.execute(query)
+    result = result.scalars().all()
+
+    return result 
 
