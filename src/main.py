@@ -7,7 +7,7 @@ app = FastAPI(title="Mailing System API", version="1.0.0")
 # Подключаем роутеры
 app.include_router(contacts_router)
 
-@app.get("/")
+@app.get("/", tags=["Добро пожаловать!"])
 async def root():
     return {"message": "Добро пожаловать в Mailing System API"}
 
