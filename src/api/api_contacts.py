@@ -1,6 +1,7 @@
 from typing import List
 from pydantic import EmailStr
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -69,4 +70,28 @@ async def search_contact_by_email(email=EmailStr, db: AsyncSession = Depends(get
         )
 
     return contact
+
+
+@router.delete(path="/{contact_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_contact(contact_id: int, db: AsyncSession = Depends(get_db)) -> Response:
+    """Удаление контакта по его ID"""
+
+    # 1. Ищем контакт
+    query = select(Contact).where(Contact.id == contact_id)
+    result = await db.execute(query)
+    contact = result.scalar_one_or_none()
+
+    # 2. Если контакт не нашли, кидаем 404
+    if not contact:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Контакт с id {contact_id} не найден"
+        )
+
+    # 3. Удаляем контакт
+    await db.delete(contact)
+    await db.commit()
+
+    # 4. Возвращаем пустой ответ (так принято для 204 статуса)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
