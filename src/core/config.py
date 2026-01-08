@@ -1,4 +1,4 @@
-"""Подключение к БД (Async Engine)"""
+"""Настройки БД"""
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str
 
+    # Настройки БД
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
