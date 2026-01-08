@@ -10,7 +10,7 @@ class MailingCreate(BaseModel):
 
 # Схема для ответа (выходные данные)
 class MailingRead(MailingCreate):
-    int: int
+    id: int
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

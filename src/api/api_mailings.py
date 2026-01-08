@@ -17,14 +17,28 @@ async def create_and_start_mailing(mailing_data: MailingCreate, db: AsyncSession
     # 1. Сохраняем информацию о рассылке в базу
     new_mailing = Mailing(**mailing_data.model_dump())
     db.add(new_mailing)
-    await db.commit()
-    await db.refresh(new_mailing) # Чтобы получить ID и дату создания из БД
 
-    # 2. ЗАПУСКАЕМ ФОНОВУЮ ЗАДАЧУ
+    # 2. Сохраняем
+    await db.commit()
+    await db.refresh(new_mailing)
+
+    # 3. Копируем данные в простые переменные ПЕРЕД отправкой в Celery
+    m_id = new_mailing.id
+    m_subject = str(new_mailing.subject)
+    m_content = str(new_mailing.content)
+    m_created_at = new_mailing.created_at
+
+    # 4. ЗАПУСКАЕМ ЗАДАЧУ
     send_mailing_task.delay(
-        mailing_subject=new_mailing.subject,
-        mailing_content=new_mailing.content
+        mailing_subject=m_subject,
+        mailing_content=m_content
     )
 
-    return new_mailing
+    # 5. Возвращаем чистый объект Pydantic (это уберет ошибку 500)
+    return MailingRead(
+        id=m_id,
+        subject=m_subject,
+        content=m_content,
+        created_at=m_created_at
+    )
 

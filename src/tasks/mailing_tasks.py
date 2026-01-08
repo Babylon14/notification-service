@@ -9,16 +9,7 @@ from src.models.contact import Contact
 
 logger = logging.getLogger(__name__)
 
-@celery_app.task(name="send_mailing_task")
-async def send_mailing_task(mailing_subject: str, mailing_content: str):
-    """
-    Фоновая задача для рассылки писем.
-    Использует синхронную обертку для запуска асинхронного кода внутри Celery.
-    """
-    return asyncio.run(run_mailing_process(mailing_subject, mailing_content))
-
-
-async def run_mailing_process(subject: str, content: str):
+async def run_mailing_process(subject: str, content: str) -> str:
     """Логика получения контактов из БД и 'отправки'"""
 
     async with AsyncSessionLocal() as db:
@@ -35,9 +26,23 @@ async def run_mailing_process(subject: str, content: str):
             logger.info(f"Отправляем письмо {contact.email} | Контент: {content[:20]}...")
 
             # Небольшая пауза, чтобы имитировать сетевую задержку
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.1)
 
         logger.info(f"Рассылка '{subject}' успешно завершена.")
         
         return f"Отправлено '{len(contacts)}' контактам"
+    
+
+@celery_app.task(name="send_mailing_task")
+def send_mailing_task(mailing_subject: str, mailing_content: str) -> str:
+    """
+    Точка входа Celery. Она запускает асинхронную логику.
+    """
+    try: 
+        result = asyncio.run(run_mailing_process(mailing_subject, mailing_content))
+        return result
+    except Exception as err:
+        logging.error(f"Ошибка при отправке рассылки: {err}")
+        return str(err)
+    
     
