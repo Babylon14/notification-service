@@ -1,4 +1,5 @@
 from typing import List
+from pydantic import EmailStr
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -41,7 +42,7 @@ async def get_contacts(
     limit: int = 10, # количество записей (по умолчанию 10)
     offset: int = 0, # сколько записей пропустить (по умолчанию 0)
     db: AsyncSession = Depends(get_db)
-    ):
+    ) -> List[ContactRead]:
     """Получение всех контактов"""
 
     # Создаем запрос: выборка всех контактов и сортировка по ID
@@ -50,4 +51,22 @@ async def get_contacts(
     result = result.scalars().all()
 
     return result 
+
+
+@router.get(path="/search", response_model=ContactRead, status_code=status.HTTP_200_OK)
+async def search_contact_by_email(email=EmailStr, db: AsyncSession = Depends(get_db)) -> ContactRead:
+    """Поиск конкретного контакта по его email."""
+
+    query = select(Contact).where(Contact.email == email) # Запрос
+    result = await db.execute(query)                      # Выполняем запрос
+    contact = result.scalar_one_or_none()                 # Достаем данный объект или None
+
+    # Если не нашли — кидаем 404
+    if not contact:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Контакт с email {email} не найден"
+        )
+
+    return contact
 
