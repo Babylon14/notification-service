@@ -21,25 +21,39 @@ async def run_mailing_process(subject: str, content: str) -> str:
         result = await db.execute(query)
         contacts = result.scalars().all()
 
-        count = 0
-        # Подключаемся к SMTP серверу
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as smtp_server:
-            smtp_server.starttls() # Шифрование
-            smtp_server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+        if not contacts:
+                return "Нет активных контактов"
         
-            # 2. Отправляем письма каждому
-            for contact in contacts:
-                # Формируем письмо
-                msg = EmailMessage()
-                msg.set_content(content)
-                msg["Subject"] = subject
-                msg["From"] = "mailing-service@example.com"
-                msg["To"] = contact.email
+        count = 0
+        try:
+            # Подключаемся к SMTP серверу
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
+                server.ehlo()
+                if server.has_extn('STARTTLS'):
+                    server.starttls() # Шифрование
+                    server.ehlo()
+                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            
+                # 2. Отправляем письма каждому
+                for contact in contacts:
+                    try:
+                        # Формируем письмо
+                        msg = EmailMessage()
+                        msg.set_content(content)
+                        msg["Subject"] = subject
+                        msg["From"] = "notification@service.com"
+                        msg["To"] = contact.email
 
-                # Отправляем
-                smtp_server.send_message(msg)
-                count += 1
-                logger.info(f"Реальное письмо успешно отправлено на {contact.email}")
+                        # Отправляем
+                        server.send_message(msg)
+                        count += 1
+                        logger.info(f"Реальное письмо успешно отправлено на {contact.email}")
+                    except Exception as err:
+                        logger.error(f"Не удалось отправить письмо на {contact.email}: {err}")
+
+        except Exception as err:
+            logger.error(f"Критическая ошибка SMTP: {err}")
+            return f"Ошибка SMTP: {err}"
         
         return f"Отправлено '{count}' реальных писем"
     
