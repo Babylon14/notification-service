@@ -1,6 +1,9 @@
 import asyncio
-import logging 
+import logging
+import smtplib
+from email.message import EmailMessage
 
+from src.core.config import settings
 from src.tasks.celery_app import celery_app
 from src.database import AsyncSessionLocal
 from sqlalchemy import select
@@ -17,20 +20,28 @@ async def run_mailing_process(subject: str, content: str) -> str:
         query = select(Contact).where(Contact.is_active == True)
         result = await db.execute(query)
         contacts = result.scalars().all()
+
+        count = 0
+        # Подключаемся к SMTP серверу
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as smtp_server:
+            smtp_server.starttls() # Шифрование
+            smtp_server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         
-        logger.info(f"Начинаем рассылку: {subject}. Количество контактов: {len(contacts)}")
+            # 2. Отправляем письма каждому
+            for contact in contacts:
+                # Формируем письмо
+                msg = EmailMessage()
+                msg.set_content(content)
+                msg["Subject"] = subject
+                msg["From"] = "mailing-service@example.com"
+                msg["To"] = contact.email
 
-        # 2. Отправляем письма каждому
-        for contact in contacts:
-            # Здесь позже будет реальный код отправки через SMTP
-            logger.info(f"Отправляем письмо {contact.email} | Контент: {content[:20]}...")
-
-            # Небольшая пауза, чтобы имитировать сетевую задержку
-            await asyncio.sleep(0.1)
-
-        logger.info(f"Рассылка '{subject}' успешно завершена.")
+                # Отправляем
+                smtp_server.send_message(msg)
+                count += 1
+                logger.info(f"Реальное письмо успешно отправлено на {contact.email}")
         
-        return f"Отправлено '{len(contacts)}' контактам"
+        return f"Отправлено '{count}' реальных писем"
     
 
 @celery_app.task(name="send_mailing_task")
