@@ -1,9 +1,17 @@
+import enum
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, func
+from sqlalchemy import String, Text, DateTime, func, Enum
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database import Base
 
+
+class MailingStatus(str, enum.Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    
 
 class Mailing(Base):
     """Модель Рассылок"""
