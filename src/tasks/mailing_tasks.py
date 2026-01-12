@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import time
 import smtplib
 from email.message import EmailMessage
 
@@ -15,25 +14,67 @@ from src.models.mailing import Mailing, MailingStatus
 
 logger = logging.getLogger(__name__)
 
-async def run_mailing_process(mailing_id: int, subject: str, content: str) -> str:
-    """Логика получения контактов из БД и 'отправки'"""
+@celery_app.task(
+        bind=True,                      # привязка к текущему контексту
+        name="send_single_email_task",  # название задачи
+        max_retries=5,                  # максимум 5 попыток
+        default_retry_delay=5,          # если упал, попробуй через 5 сек
+)
+def send_single_email_task(self, email: str, subject: str, content: str, html_content: str) -> str:
+    try:
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
+            server.starttls()
+            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
 
+            # ОБРАБОТКА: Отправляем письмо
+            msg = EmailMessage()
+            msg["Subject"] = subject
+            msg["From"] = f"Сервис Рассылки <{settings.SMTP_USER}>"
+            msg["To"] = email
+            msg.set_content(content) # СНАЧАЛА текст
+            msg.add_alternative(html_content, subtype="html") # ПОСЛЕ HTML
+
+            server.send_message(msg) # Отправляем
+            return f"Письмо отправлено {email}"
+        
+    except Exception as exc:
+        # Если это лимит Mailtrap, отправляем задачу на повтор
+        if "550" in str(exc):
+            raise self.retry(exc=exc, countdown=5) # запускаем через 5 секунд
+        logger.error(f"Ошибка при отправке письма для {email}: {exc}")
+        raise exc
+
+
+@celery_app.task(name="start_mailing_orchestrator")
+def start_mailing_orchestrator(mailing_id: int, subject: str, content: str):
+    """Основная логика рассылки, готовит данные и раздает команды."""
+    try:
+        return asyncio.run(_orchestrate(mailing_id, subject, content))
+    except Exception as err:
+        logger.error(f"Критический сбой оркестратора: {err}")
+        return str(err)
+
+
+async def _orchestrate(mailing_id: int, subject: str, content: str):
     async with AsyncSessionLocal() as db:
-        # 1. Меняем статус на "В процессе"
+        # 1. Ставим статус PROCESSING
         await db.execute(
             update(Mailing).where(Mailing.id == mailing_id).values(status=MailingStatus.PROCESSING)
         )
         await db.commit()
-
-        # 2. Получаем все *активные* контакты
-        query = select(Contact).where(Contact.is_active == True)
-        result = await db.execute(query)
+        
+        # 2. Получаем *активные* контакты
+        result = await db.execute(
+            select(Contact).where(Contact.is_active == True)
+        )
         contacts = result.scalars().all()
+
+        logger.info(f"Оркестратор нашел {len(contacts)} активных контактов для рассылки #{mailing_id}")
 
         if not contacts:
                 return "Нет активных контактов"
         
-        # 3. HTML-шаблон
+        # 3. Генерируем шаблон
         html_template = f"""
         <html>
             <body style="font-family: Arial, sans-serif; color: #333;">
@@ -48,60 +89,23 @@ async def run_mailing_process(mailing_id: int, subject: str, content: str) -> st
             </body>
         </html>
         """
-        
-        count = 0
-        try:
-            for contact in contacts:
-                success = False
-                attempts = 0
-                while not success and attempts < 3:
-                    try:
-                        # Открываем соединение для КАЖДОГО контакта внутри его блока try
-                        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
-                            server.ehlo()
-                            if server.has_extn('STARTTLS'):
-                                server.starttls()
-                                server.ehlo()
-                            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
 
-                            # ОБРАБОТКА: Отправляем письмо
-                            msg = EmailMessage()
-                            msg["Subject"] = subject
-                            msg["From"] = f"Сервис Рассылки <{settings.SMTP_USER}>"
-                            msg["To"] = contact.email
-                            msg.set_content(content) # СНАЧАЛА текст
-                            msg.add_alternative(html_template, subtype="html") # ПОСЛЕ HTML
-
-                            server.send_message(msg) # Отправляем
-                            count += 1
-                            success = True # Отправлено успешно!
-                            logger.info(f"Реальное письмо успешно отправлено на {contact.email}")
-
-                            # Увеличиваем паузу до 1.5 сек для стабильности
-                            time.sleep(1.5)
-                    except Exception as err:
-                        attempts += 1
-                        err_msg = str(err)
-                        if "550" in err_msg:
-                            logger.warning(f"Лимит достигнут на {contact.email}. Ждем 3 сек. Попытка {attempts}")
-                            # Даем серверу "передохнуть" после ошибки лимита
-                            time.sleep(3)
-                        else:
-                            logger.error(f"Не удалось отправить письмо на {contact.email}: {err}")
-                            break
-            # Если цикл дошел до конца без фатальных ошибок самого Python
-            await db.execute(
-                update(Mailing).where(Mailing.id == mailing_id).values(status=MailingStatus.COMPLETED)
+        # 4. Вместо цикла с отправкой, мы создаем задачи
+        for contact in contacts:
+            logger.info(f"Создаю задачу для {contact.email}")
+            # Кидаем задачу в очередь и идем дальше.
+            send_single_email_task.delay(
+                email=contact.email,
+                subject=subject,
+                content=content,
+                html_content=html_template
             )
-        except Exception as err:
-            # Если упало что-то глобальное (например, БД)
-            await db.execute(
-                update(Mailing).where(Mailing.id == mailing_id).values(status=MailingStatus.FAILED)
-            )
-            logger.error(f"Критическая ошибка рассылки: {err}")
-            
+        # 5. Сразу ставим COMPLETED, потому что задачи уже в очереди
+        await db.execute(
+            update(Mailing).where(Mailing.id == mailing_id).values(status=MailingStatus.COMPLETED)
+        )
         await db.commit()
-        return f"Отправлено '{count}' писем"
+        return f"Запущена рассылка для {len(contacts)} адресатов"
     
 
 @celery_app.task(name="send_mailing_task")
@@ -110,7 +114,7 @@ def send_mailing_task(mailing_id: int, mailing_subject: str, mailing_content: st
     Точка входа Celery. Она запускает асинхронную логику.
     """
     try: 
-        result = asyncio.run(run_mailing_process(mailing_id, mailing_subject, mailing_content))
+        result = asyncio.run(start_mailing_orchestrator(mailing_id, mailing_subject, mailing_content))
         return result
     except Exception as err:
         logging.error(f"Ошибка при отправке рассылки: {err}")

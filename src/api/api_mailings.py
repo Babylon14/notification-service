@@ -15,13 +15,13 @@ async def create_and_start_mailing(mailing_data: MailingCreate, db: AsyncSession
     """Создание новой рассылки"""
 
     # 1. Сохраняем информацию о рассылке в базу
-    # new_mailing = Mailing(**mailing_data.model_dump())
     new_mailing = Mailing(
         subject=mailing_data.subject,
         content=mailing_data.content,
         status=MailingStatus.PENDING
     )
     db.add(new_mailing)
+    
     # 2. Сохраняем
     await db.commit()
     await db.refresh(new_mailing)
@@ -30,7 +30,6 @@ async def create_and_start_mailing(mailing_data: MailingCreate, db: AsyncSession
     m_id = new_mailing.id
     m_subject = str(new_mailing.subject)
     m_content = str(new_mailing.content)
-    m_created_at = new_mailing.created_at
 
     # 4. ЗАПУСКАЕМ ЗАДАЧУ
     send_mailing_task.delay(
