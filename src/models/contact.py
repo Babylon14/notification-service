@@ -18,6 +18,4 @@ class Contact(Base):
 
     def __repr__(self) -> str:
         return f"<Контакт(email={self.email})>"
-
-
-
+    

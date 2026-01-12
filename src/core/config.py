@@ -15,11 +15,10 @@ class Settings(BaseSettings):
     PGADMIN_PASSWORD: str
     
     # Настройки почты
-    SMTP_HOST: str
-    SMTP_PORT: int
+    SMTP_HOST: str = "sandbox.smtp.mailtrap.io"
+    SMTP_PORT: int = 2525
     SMTP_USER: str
     SMTP_PASSWORD: str
-    SMTP_FROM_EMAIL: str
     
     # Безопасность
     SECRET_KEY: str

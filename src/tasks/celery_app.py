@@ -17,5 +17,6 @@ celery_app.conf.update(
 
 # Автоматический поиск задач в папке tasks
 celery_app.autodiscover_tasks(["src.tasks"])
+import src.tasks.mailing_tasks  # Принудительный импорт
 
 

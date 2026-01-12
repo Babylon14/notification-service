@@ -10,7 +10,8 @@ from alembic import context
 # --- ИМПОРТЫ ПРОЕКТА ---
 from src.core.config import settings
 from src.database import Base
-from src.models import Contact
+from src.models.contact import Contact
+from src.models.mailing import Mailing
 
 
 # this is the Alembic Config object, which provides
