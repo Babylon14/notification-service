@@ -31,7 +31,8 @@ async def create_and_start_mailing(mailing_data: MailingCreate, db: AsyncSession
     # 4. ЗАПУСКАЕМ ЗАДАЧУ
     send_mailing_task.delay(
         mailing_subject=m_subject,
-        mailing_content=m_content
+        mailing_content=m_content,
+        mailing_id=m_id
     )
 
     # 5. Возвращаем чистый объект Pydantic (это уберет ошибку 500)

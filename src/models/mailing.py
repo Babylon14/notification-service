@@ -20,6 +20,7 @@ class Mailing(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     subject: Mapped[str] = mapped_column(String(255), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[MailingStatus] = mapped_column(Enum(MailingStatus), default=MailingStatus.PENDING)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self) -> str:
