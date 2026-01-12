@@ -91,12 +91,12 @@ async def run_mailing_process(mailing_id: int, subject: str, content: str) -> st
     
 
 @celery_app.task(name="send_mailing_task")
-def send_mailing_task(mailing_subject: str, mailing_content: str) -> str:
+def send_mailing_task(mailing_id: int, mailing_subject: str, mailing_content: str) -> str:
     """
     Точка входа Celery. Она запускает асинхронную логику.
     """
     try: 
-        result = asyncio.run(run_mailing_process(mailing_subject, mailing_content))
+        result = asyncio.run(run_mailing_process(mailing_id, mailing_subject, mailing_content))
         return result
     except Exception as err:
         logging.error(f"Ошибка при отправке рассылки: {err}")

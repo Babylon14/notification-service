@@ -7,10 +7,10 @@ from src.database import Base
 
 
 class MailingStatus(str, enum.Enum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
+    PENDING = "pending"       # Формируется
+    PROCESSING = "processing" # В процессе
+    COMPLETED = "completed"   # Завершена
+    FAILED = "failed"         # Ошибка
     
 
 class Mailing(Base):

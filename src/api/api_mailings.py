@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
-from src.models.mailing import Mailing
+from src.models.mailing import Mailing, MailingStatus
 from src.schemas.schema_mailing import MailingCreate, MailingRead
 from src.tasks.mailing_tasks import send_mailing_task
 
@@ -15,9 +15,13 @@ async def create_and_start_mailing(mailing_data: MailingCreate, db: AsyncSession
     """Создание новой рассылки"""
 
     # 1. Сохраняем информацию о рассылке в базу
-    new_mailing = Mailing(**mailing_data.model_dump())
+    # new_mailing = Mailing(**mailing_data.model_dump())
+    new_mailing = Mailing(
+        subject=mailing_data.subject,
+        content=mailing_data.content,
+        status=MailingStatus.PENDING
+    )
     db.add(new_mailing)
-
     # 2. Сохраняем
     await db.commit()
     await db.refresh(new_mailing)
@@ -34,12 +38,6 @@ async def create_and_start_mailing(mailing_data: MailingCreate, db: AsyncSession
         mailing_subject=m_subject,
         mailing_content=m_content
     )
-
-    # 5. Возвращаем чистый объект Pydantic (это уберет ошибку 500)
-    return MailingRead(
-        id=m_id,
-        subject=m_subject,
-        content=m_content,
-        created_at=m_created_at
-    )
+    # 5. Возвращаем объект Pydantic явно
+    return MailingRead.model_validate(new_mailing)
 
