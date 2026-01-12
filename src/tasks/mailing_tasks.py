@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 import smtplib
 from email.message import EmailMessage
 
@@ -10,7 +11,6 @@ from sqlalchemy import select, update
 
 from src.models.contact import Contact
 from src.models.mailing import Mailing, MailingStatus
-
 
 
 logger = logging.getLogger(__name__)
@@ -51,41 +51,55 @@ async def run_mailing_process(mailing_id: int, subject: str, content: str) -> st
         
         count = 0
         try:
-            # Подключаемся к SMTP серверу
-            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
-                server.ehlo()
-                if server.has_extn('STARTTLS'):
-                    server.starttls() # Шифрование
-                    server.ehlo()
-                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            
-                # 2. Отправляем письма каждому
-                for contact in contacts:
+            for contact in contacts:
+                success = False
+                attempts = 0
+                while not success and attempts < 3:
                     try:
-                        # Формируем письмо
-                        msg = EmailMessage()
-                        msg.set_content(content)
-                        msg["Subject"] = subject
-                        msg["From"] = f"Mailing Service <{settings.SMTP_USER}>"
-                        msg["To"] = contact.email
+                        # Открываем соединение для КАЖДОГО контакта внутри его блока try
+                        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as server:
+                            server.ehlo()
+                            if server.has_extn('STARTTLS'):
+                                server.starttls()
+                                server.ehlo()
+                            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
 
-                        # Указываем, что это HTML
-                        msg.add_alternative(html_template, subtype="html")
+                            # ОБРАБОТКА: Отправляем письмо
+                            msg = EmailMessage()
+                            msg["Subject"] = subject
+                            msg["From"] = f"Сервис Рассылки <{settings.SMTP_USER}>"
+                            msg["To"] = contact.email
+                            msg.set_content(content) # СНАЧАЛА текст
+                            msg.add_alternative(html_template, subtype="html") # ПОСЛЕ HTML
 
-                        # Отправляем
-                        server.send_message(msg)
-                        count += 1
-                        logger.info(f"Реальное письмо успешно отправлено на {contact.email}")
+                            server.send_message(msg) # Отправляем
+                            count += 1
+                            success = True # Отправлено успешно!
+                            logger.info(f"Реальное письмо успешно отправлено на {contact.email}")
+
+                            # Увеличиваем паузу до 1.5 сек для стабильности
+                            time.sleep(1.5)
                     except Exception as err:
-                        logger.error(f"Не удалось отправить письмо на {contact.email}: {err}")
+                        attempts += 1
+                        err_msg = str(err)
+                        if "550" in err_msg:
+                            logger.warning(f"Лимит достигнут на {contact.email}. Ждем 3 сек. Попытка {attempts}")
+                            # Даем серверу "передохнуть" после ошибки лимита
+                            time.sleep(3)
+                        else:
+                            logger.error(f"Не удалось отправить письмо на {contact.email}: {err}")
+                            break
+            # Если цикл дошел до конца без фатальных ошибок самого Python
             await db.execute(
                 update(Mailing).where(Mailing.id == mailing_id).values(status=MailingStatus.COMPLETED)
             )
         except Exception as err:
+            # Если упало что-то глобальное (например, БД)
             await db.execute(
                 update(Mailing).where(Mailing.id == mailing_id).values(status=MailingStatus.FAILED)
             )
-            logger.error(f"Ошибка рассылки: {err}")
+            logger.error(f"Критическая ошибка рассылки: {err}")
+            
         await db.commit()
         return f"Отправлено '{count}' писем"
     
