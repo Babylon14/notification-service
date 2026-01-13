@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Optional, Union, Any
-import jwt
+from jose import jwt 
 from passlib.context import CryptContext
 import os
 from dotenv import load_dotenv
@@ -15,9 +15,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")
 # Настройка хеширования паролей
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
+def verify_password(plain_password: str, hash_password: str) -> bool:
     """Проверка соответствия пароля и его хеша"""
-    return pwd_context.verify(plain_password, hashed_password)
+    return pwd_context.verify(plain_password, hash_password)
 
 
 def get_password_hash(password: str) -> str:

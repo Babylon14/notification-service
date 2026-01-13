@@ -30,7 +30,7 @@ async def register_user(user_data: UserCreate, db: AsyncSession = Depends(get_db
     # 3. Создаем объект пользователя
     new_user = User(
         email=user_data.email,
-        hashed_password=hashed_pass,
+        hash_password=hashed_pass,
         is_active=True
     )
     # 4. Сохраняем в базу данных
