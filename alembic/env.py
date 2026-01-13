@@ -12,6 +12,7 @@ from src.core.config import settings
 from src.database import Base
 from src.models.contact import Contact
 from src.models.mailing import Mailing
+from src.models.user import User
 
 
 # this is the Alembic Config object, which provides
