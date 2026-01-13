@@ -2,7 +2,7 @@ from pydantic import BaseModel, EmailStr
 
 
 # Базовая схема с общими полями при регистрации
-class UserBase(BaseModel):
+class UserCreate(BaseModel):
     email: EmailStr
     password: str
 
@@ -21,4 +21,3 @@ class Tocken(BaseModel):
     access_token: str
     token_type: str
 
-    
