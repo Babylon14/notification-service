@@ -17,7 +17,7 @@ class UserRead(BaseModel):
 
 
 # Схема для выдачи токена
-class Tocken(BaseModel):
+class Token(BaseModel):
     access_token: str
     token_type: str
 
