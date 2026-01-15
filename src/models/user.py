@@ -1,5 +1,5 @@
 from sqlalchemy import Integer, String, Boolean
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Base
 
@@ -13,4 +13,6 @@ class User(Base):
     hash_password: Mapped[str] = mapped_column(String, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    mailings = relationship("Mailing", back_populates="owner")
 
+    
