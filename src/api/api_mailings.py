@@ -3,22 +3,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import get_db
 from src.models.mailing import Mailing, MailingStatus
+from src.models.user import User
 from src.schemas.schema_mailing import MailingCreate, MailingRead
 from src.tasks.mailing_tasks import send_mailing_task
-
+from src.api.dependencies import get_current_user
 
 router = APIRouter(prefix="/mailings", tags=["Рассылки"])
 
 
 @router.post("/", response_model=MailingRead, status_code=status.HTTP_201_CREATED)
-async def create_and_start_mailing(mailing_data: MailingCreate, db: AsyncSession = Depends(get_db)):
+async def create_and_start_mailing(
+    mailing_data: MailingCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+    ):
     """Создание новой рассылки"""
 
     # 1. Сохраняем информацию о рассылке в базу
     new_mailing = Mailing(
         subject=mailing_data.subject,
         content=mailing_data.content,
-        status=MailingStatus.PENDING
+        status=MailingStatus.PENDING,
+        owner_id=current_user.id
     )
     db.add(new_mailing)
     
