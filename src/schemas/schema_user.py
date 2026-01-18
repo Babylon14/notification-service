@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 
 # Базовая схема с общими полями при регистрации
@@ -12,8 +12,7 @@ class UserRead(BaseModel):
     id: int
     email: EmailStr
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Схема для выдачи токена
