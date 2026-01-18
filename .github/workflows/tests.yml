@@ -1,0 +1,42 @@
+name: Run Tests
+
+on:
+  push:
+    branches: [ "dev", "main" ]  # Запуск при пуше в dev или main
+  pull_request:
+    branches: [ "dev", "main" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create .env file
+        run: |
+          # Создаем временный .env для тестов в CI
+          echo "POSTGRES_DB=test_db" >> .env
+          echo "POSTGRES_USER=postgres" >> .env
+          echo "POSTGRES_PASSWORD=postgres" >> .env
+          echo "POSTGRES_HOST=db" >> .env
+          echo "POSTGRES_PORT=5432" >> .env
+          echo "DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/test_db" >> .env
+          echo "REDIS_URL=redis://redis:6379/0" >> .env
+          echo "SECRET_KEY=test_secret_key_123" >> .env
+          echo "ALGORITHM=HS256" >> .env
+          echo "SMTP_HOST=smtp.mailtrap.io" >> .env
+          echo "SMTP_PORT=2525" >> .env
+
+      - name: Build and start containers
+        run: docker compose up -d --build
+
+      - name: Run Pytest inside container
+        run: docker compose exec -T app pytest
+
+      - name: Stop containers
+        if: always()
+        run: docker compose down
+
+        
